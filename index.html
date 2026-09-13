@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Zombie Survival</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+  }
+</script>
+<style>
+  /* Kept minimal on purpose — everything else is Tailwind utility classes. */
+  html, body { height: 100%; }
+  #gameArea { touch-action: none; }
+  .entity { will-change: left, top; }
+  dialog::backdrop { background: rgba(0,0,0,0.7); }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen bg-stone-200 text-stone-900 dark:bg-neutral-950 dark:text-lime-50 font-sans motion-reduce:transition-none transition-colors">
+
+<header class="border-b-4 border-neutral-900 dark:border-lime-700 bg-neutral-900 dark:bg-black forced-colors:border-b">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-3xl md:text-4xl font-black tracking-tight text-lime-400 forced-colors:text-[ButtonText]">
+        🧟 Zombie Survival
+      </h1>
+      <p class="text-sm md:text-base text-stone-300 font-mono mt-1">เอาชีวิตรอดจากฝูงซอมบี้ให้นานที่สุด!</p>
+    </div>
+    <button
+      id="darkModeToggle"
+      type="button"
+      aria-label="สลับโหมดสว่าง/มืด"
+      class="shrink-0 w-11 h-11 flex items-center justify-center text-xl rounded border-2 border-lime-700 bg-neutral-800 hover:bg-neutral-700 text-lime-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400 forced-colors:border forced-colors:text-[ButtonText] forced-colors:bg-[ButtonFace]"
+    >🌙</button>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-4 grid grid-cols-1 gap-4">
+
+  <!-- HUD -->
+  <section aria-label="สถานะเกม" class="bg-neutral-900 dark:bg-black border-2 border-lime-800 rounded-sm p-3 font-mono text-sm md:text-base forced-colors:border">
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-lime-300">
+      <div class="flex flex-col">
+        <span class="text-stone-400 text-xs">LEVEL</span>
+        <span id="hudLevel" class="text-lg font-bold text-lime-300">1</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="text-stone-400 text-xs">❤️ HP</span>
+        <span id="hudHp" class="text-lg font-bold">100</span>
+        <div class="w-full h-2 bg-neutral-700 border border-neutral-600 mt-1" role="img" aria-label="แถบพลังชีวิต">
+          <div id="hpBar" class="h-full bg-green-500 forced-colors:bg-[Highlight]" style="width:100%"></div>
+        </div>
+      </div>
+      <div class="flex flex-col">
+        <span class="text-stone-400 text-xs">🔫 AMMO</span>
+        <span id="hudAmmo" class="text-lg font-bold text-amber-400">10</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="text-stone-400 text-xs">⭐ SCORE</span>
+        <span id="hudScore" class="text-lg font-bold text-yellow-300">0</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="text-stone-400 text-xs">🧟 ZOMBIES / ⏱️ TIME</span>
+        <span><span id="hudZombies" class="text-lg font-bold text-red-400">5</span> / <span id="hudTime" class="text-lg font-bold text-sky-300">60</span>s</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Status message -->
+  <div id="statusMessage" aria-live="polite" class="min-h-[2.5rem] flex items-center justify-center text-center font-mono text-sm md:text-base font-bold px-3 py-2 bg-neutral-800 dark:bg-neutral-900 border-2 border-dashed border-neutral-600 text-lime-200 rounded-sm forced-colors:border">
+    พร้อมเริ่มเกม! กด "เริ่มเกม" เพื่อเข้าสู่สนามรบ
+  </div>
+
+  <!-- Game area -->
+  <section aria-label="สนามเกม" class="relative w-full aspect-[16/10] max-h-[70vh] bg-neutral-800 dark:bg-neutral-900 border-4 border-neutral-900 dark:border-lime-900 overflow-hidden rounded-sm forced-colors:border">
+    <div id="gameArea" class="absolute inset-0 overflow-hidden">
+      <!-- entities injected here by JS -->
+    </div>
+
+    <!-- Overlay screens -->
+    <div id="startOverlay" class="absolute inset-0 bg-neutral-950/90 flex flex-col items-center justify-center gap-4 text-center p-4">
+      <p class="text-lime-300 font-mono text-lg">แผนที่พร้อมแล้ว นักสู้...</p>
+      <button id="startBtn" type="button" class="px-6 py-3 bg-lime-600 hover:bg-lime-500 text-neutral-950 font-bold rounded-sm border-2 border-lime-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 forced-colors:border forced-colors:bg-[ButtonFace] forced-colors:text-[ButtonText]">
+        ▶ เริ่มเกม
+      </button>
+    </div>
+
+    <div id="winOverlay" class="hidden absolute inset-0 bg-neutral-950/90 flex-col items-center justify-center gap-3 text-center p-4">
+      <p class="text-2xl font-black text-lime-400">🎉 YOU SURVIVED! ผ่าน Level แล้ว!</p>
+      <div class="flex flex-wrap gap-3 justify-center mt-2">
+        <button id="nextLevelBtn" type="button" class="px-4 py-2 bg-lime-600 hover:bg-lime-500 text-neutral-950 font-bold rounded-sm border-2 border-lime-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 forced-colors:border">เล่น Level ต่อไป</button>
+        <button id="restartFromWinBtn" type="button" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-lime-100 font-bold rounded-sm border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 forced-colors:border">เริ่มใหม่</button>
+      </div>
+    </div>
+
+    <div id="gameOverOverlay" class="hidden absolute inset-0 bg-neutral-950/90 flex-col items-center justify-center gap-3 text-center p-4">
+      <p class="text-2xl font-black text-red-500">💀 GAME OVER</p>
+      <p class="text-stone-300 font-mono">คุณไม่สามารถเอาชีวิตรอดได้</p>
+      <button id="restartFromLoseBtn" type="button" class="mt-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-neutral-50 font-bold rounded-sm border-2 border-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 forced-colors:border">เริ่มใหม่</button>
+    </div>
+  </section>
+
+  <!-- Action buttons -->
+  <section aria-label="ปุ่มควบคุมเกม" class="flex flex-wrap gap-2 justify-center">
+    <button id="restartBtn" type="button" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-lime-100 font-bold rounded-sm border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 forced-colors:border">🔄 เริ่มใหม่ (R)</button>
+    <button id="increaseLevelBtn" type="button" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-neutral-950 font-bold rounded-sm border-2 border-amber-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 forced-colors:border">⬆️ เพิ่ม Level</button>
+    <button id="howToPlayBtn" type="button" class="px-4 py-2 bg-sky-700 hover:bg-sky-600 text-lime-50 font-bold rounded-sm border-2 border-sky-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 forced-colors:border">📖 วิธีเล่น</button>
+  </section>
+
+  <!-- Mobile controls -->
+  <section aria-label="ปุ่มควบคุมสำหรับมือถือ" class="md:hidden grid grid-cols-2 gap-6 justify-items-center pb-4">
+    <div class="grid grid-cols-3 grid-rows-3 gap-1 w-36">
+      <div></div>
+      <button data-dir="up" aria-label="เดินขึ้น" class="dpad-btn col-start-2 row-start-1 w-11 h-11 bg-neutral-700 active:bg-neutral-600 text-lime-200 text-xl rounded border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300 forced-colors:border">↑</button>
+      <div></div>
+      <button data-dir="left" aria-label="เดินซ้าย" class="dpad-btn col-start-1 row-start-2 w-11 h-11 bg-neutral-700 active:bg-neutral-600 text-lime-200 text-xl rounded border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300 forced-colors:border">←</button>
+      <button data-dir="down" aria-label="เดินลง" class="dpad-btn col-start-2 row-start-2 w-11 h-11 bg-neutral-700 active:bg-neutral-600 text-lime-200 text-xl rounded border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300 forced-colors:border">↓</button>
+      <button data-dir="right" aria-label="เดินขวา" class="dpad-btn col-start-3 row-start-2 w-11 h-11 bg-neutral-700 active:bg-neutral-600 text-lime-200 text-xl rounded border-2 border-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300 forced-colors:border">→</button>
+    </div>
+    <div class="flex items-center">
+      <button id="shootBtnMobile" aria-label="ยิง" class="w-20 h-20 bg-red-700 active:bg-red-600 text-2xl rounded-full border-4 border-red-900 text-lime-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300 forced-colors:border">🔫</button>
+    </div>
+  </section>
+
+  <!-- Keyboard control summary -->
+  <section aria-label="สรุปปุ่มควบคุม" class="bg-neutral-900 dark:bg-black border-2 border-neutral-700 rounded-sm p-3 font-mono text-xs md:text-sm text-stone-300 forced-colors:border">
+    <h2 class="text-lime-400 font-bold mb-2 text-sm">⌨️ Keyboard Control</h2>
+    <ul class="grid grid-cols-2 sm:grid-cols-3 gap-1">
+      <li>W / ↑ — เดินขึ้น</li>
+      <li>A / ← — เดินซ้าย</li>
+      <li>S / ↓ — เดินลง</li>
+      <li>D / → — เดินขวา</li>
+      <li>Space — ยิง</li>
+      <li>R — Restart</li>
+    </ul>
+  </section>
+</main>
+
+<!-- How to play dialog -->
+<dialog id="howToPlayDialog" class="max-w-md w-[90vw] rounded-sm border-4 border-lime-700 bg-neutral-900 text-lime-50 p-0 backdrop:bg-black/70">
+  <div class="p-5 font-mono text-sm">
+    <h2 class="text-xl font-black text-lime-400 mb-3">📖 วิธีเล่น</h2>
+    <div class="space-y-3">
+      <div>
+        <h3 class="text-amber-400 font-bold">⌨️ การเคลื่อนที่</h3>
+        <ul class="text-stone-200 pl-2">
+          <li>W / ↑ — เดินขึ้น</li>
+          <li>A / ← — เดินซ้าย</li>
+          <li>S / ↓ — เดินลง</li>
+          <li>D / → — เดินขวา</li>
+          <li>Space — ยิง</li>
+          <li>R — เริ่มใหม่</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">🎯 เป้าหมาย</h3>
+        <p class="text-stone-200">กำจัด Zombie ให้ครบก่อน HP หมด</p>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">🔫 กระสุน</h3>
+        <p class="text-stone-200">เก็บ Ammo เพื่อเพิ่มกระสุน</p>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">❤️ HP</h3>
+        <p class="text-stone-200">เก็บ Health Pack เพื่อเพิ่มพลังชีวิต</p>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">⭐ Score</h3>
+        <p class="text-stone-200">กำจัด Zombie และเก็บ Coin เพื่อเพิ่มคะแนน</p>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">💀 Game Over</h3>
+        <p class="text-stone-200">HP เหลือ 0 = แพ้</p>
+      </div>
+      <div>
+        <h3 class="text-amber-400 font-bold">🎉 Win</h3>
+        <p class="text-stone-200">กำจัด Zombie ครบ = ชนะ</p>
+      </div>
+    </div>
+    <button id="closeHowToPlayBtn" type="button" class="mt-4 w-full px-4 py-2 bg-lime-600 hover:bg-lime-500 text-neutral-950 font-bold rounded-sm border-2 border-lime-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-300 forced-colors:border">ปิด</button>
+  </div>
+</dialog>
+
+<script src="script.js"></script>
+</body>
+</html>
